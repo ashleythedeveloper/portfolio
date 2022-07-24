@@ -1,13 +1,15 @@
-name: Portfolio CI/CD Pipeline
+name: Portfolio Pipeline
 
 on:
   push:
-    branches: [ "main" ]
-    
+  pull_request:
+
 env:
-  SERVER: production
+  IS_PROD: github.event.pull_request.base.ref == 'main'
+  IS_DEV: github.event.pull_request.base.ref == 'dev'
+  IS_MERGED: github.event.pull_request.merged == true
   APP_NAME: portfolio
-  ENV: prod
+  ENV: github.event.pull_request.base.ref
 
 jobs:
   build-test-api:
@@ -15,93 +17,98 @@ jobs:
     defaults:
       run:
         working-directory: ./apps/api
-        
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version: 16.16.x
           cache: npm
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Run linting
         run: npm run lint
-        
+
       - name: Run unit tests
         run: npm run test
-        
+
       - name: Build artifact
+        if: ${{env.IS_MERGED}}
         run: npm run build
-      
+
       - name: Publish artifact
+        if: ${{env.IS_MERGED}}
         uses: actions/upload-artifact@v3
         with:
           name: api-build
           path: .webpack/service
-    
+
   build-test-website:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./apps/website
-        
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version: 16.16.x
           cache: npm
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Run linting
         run: npm run lint
-        
+
       - name: Run unit tests
         run: npm run test
-        
+
       - name: Build artifact
+        if: ${{env.IS_MERGED}}
         run: npm run build
-      
+
       - name: Publish artifact
+        if: ${{env.IS_MERGED}}
         uses: actions/upload-artifact@v3
         with:
           name: website-build
           path: ./build
-          
   deploy:
+    # variables only availabe in steps
+    if: github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'dev' || github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
     needs: [build-test-api, build-test-website]
     defaults:
       run:
         working-directory: ./infrastructure
-    
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           path: ../artifacts
-      
+
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version: 16.16.x
           cache: npm
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Pulumi preview
         run: pulumi preview -s ${{env.APP_NAME}}-${{env.ENV}} --non-interactive
-        
+
       - name: Pulumi up
         run: pulumi up -s ${{env.APP_NAME}}-${{env.ENV}} --yes --non-interactive
