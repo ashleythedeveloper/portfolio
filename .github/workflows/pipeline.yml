@@ -10,6 +10,9 @@ env:
   IS_MERGED: github.event.pull_request.merged == true
   APP_NAME: portfolio
   ENV: github.event.pull_request.base.ref
+  AWS_REGION: ap-southeast-2
+  AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
+  AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
 
 jobs:
   build-test-api:
@@ -106,6 +109,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Pulumi
+        run: curl -fsSL https://get.pulumi.com | sh
 
       - name: Pulumi preview
         run: pulumi preview -s ${{env.APP_NAME}}-${{env.ENV}} --non-interactive
